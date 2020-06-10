@@ -13,7 +13,7 @@
 12 horse 128 0 192
 13 motorbike 128 128 64
 14 person 128 128 192
-15 pottedplant
+15 pottedplant 0 64 0
 16 sheep 0 64 128
 17 sofa 0 192 0
 18 train 0 192 128
