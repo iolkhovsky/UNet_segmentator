@@ -2,6 +2,7 @@ from glob import glob
 from os.path import join, isdir
 import cv2
 import datetime
+import pickle
 
 from voc_dataset.utils import load_label_map, make_color2label, color_histogram
 
@@ -36,9 +37,9 @@ class VocIndex:
                     objects.append(label)
                     self.index[label].append((sample_img_path, sample_map_path))
             self.linear_index.append((sample_img_path, sample_map_path, objects))
-            for i in range(10):
-                if sample_id == int(len(segmented_images) * i * 0.1):
-                    print(str(i*10), "% loaded",  datetime.datetime.now())
+            for i in range(1, 11):
+                if sample_id == int(len(segmented_images) * i * 0.1) - 1:
+                    self.log(str(i*10), "% loaded")
         return
 
     def __getitem__(self, item):
@@ -56,14 +57,24 @@ class VocIndex:
             self.idx += 1
             return out
         else:
+            self.idx = 0
             raise StopIteration
 
     def __len__(self):
         return len(self.linear_index)
 
+    @staticmethod
+    def log(*args):
+        st = str(datetime.datetime.now())
+        st += "\t<Index-VOC-Segmentation>: "
+        for t in args:
+            st += t + " "
+        print(st)
+
 
 if __name__ == "__main__":
     index = VocIndex("/home/igor/datasets/VOC_2012/trainval",
                      "/home/igor/github/my/UNet_segmentator/configs/label_map.txt")
-    for sample in index:
-        print(sample)
+    index_target_path = "voc_segmentation_index.dat"
+    pickle.dump(index, open(index_target_path, 'wb'))
+    index.log("Index has been saved at " + index_target_path)
