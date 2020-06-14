@@ -4,7 +4,7 @@ import cv2
 import datetime
 import pickle
 
-from voc_dataset.utils import load_label_map, make_color2label, color_histogram
+from voc_dataset.utils import load_label_map, make_color2label, color_histogram, make_id2label
 
 
 class VocIndex:
@@ -12,6 +12,7 @@ class VocIndex:
     def __init__(self, root, label_map_path):
         self.label_map = load_label_map(label_map_path)
         self.color2label = make_color2label(self.label_map)
+        self.id2label = make_id2label(self.label_map)
         self.root = root
         self.index = {}
         self.linear_index = []
