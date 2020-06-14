@@ -95,7 +95,7 @@ class VocSegmentationUNet:
         return len(self.input_images)
 
     def __make_sample(self, idx):
-        return {"input": self.input_images[idx], "target": self.target_tensors[idx], "weight": self.target_weights}
+        return {"input": self.input_images[idx], "target": self.target_tensors[idx], "weight": self.target_weights[idx]}
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -135,8 +135,18 @@ class VocSegmentationUNet:
     def decode_to_label_map(encoded_tensor):
         if type(encoded_tensor) == torch.tensor:
             encoded_tensor = encoded_tensor.detach().numpy()
+        encoded_tensor = array_cyx2yxc(encoded_tensor)
         max_idx_map = np.argmax(encoded_tensor, axis=2)
         return max_idx_map
+
+    @staticmethod
+    def decode_input_image(norm_image):
+        if type(norm_image) == torch.tensor:
+            norm_image = norm_image.detach().numpy()
+        image = denormalize_img_cyx(norm_image)
+        image = array_cyx2yxc(image).astype(np.uint8)
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        return image
 
 
 if __name__ == "__main__":
