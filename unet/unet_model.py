@@ -14,55 +14,48 @@ class UNet(nn.Module):
         self.out_classes = out_classes
 
         self.conv1 = ConvX2(channels=[in_channels, 64, 64])
-
         self.downsample1 = DownSample(channels=[64, 128, 128])
         self.downsample2 = DownSample(channels=[128, 256, 256])
         self.downsample3 = DownSample(channels=[256, 512, 512])
-        self.downsample4 = DownSample(channels=[512, 1024, 1024])
+        self.downsample4 = DownSample(channels=[512, 512, 512])
 
-        self.upsample1 = UpSample(1024, 256)
-        self.upsample2 = UpSample(512, 256)
+        self.upsample5 = UpSample(channels=[1024, 512, 256])
+        self.upsample6 = UpSample(channels=[512, 256, 128])
+        self.upsample7 = UpSample(channels=[256, 128, 64])
+        self.upsample8 = UpSample(channels=[128, 64, 64])
 
-
-
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
-        self.up4 = Up(128, 64, bilinear)
-        self.outc = OutConv(64, n_classes)
+        self.conv9 = nn.Conv2d(64, out_classes, kernel_size=1)
+        return
 
     def forward(self, x):
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        logits = self.outc(x)
-        return logits
+        x1 = self.conv1(x)
+        x2 = self.downsample1(x1)
+        x3 = self.downsample2(x2)
+        x4 = self.downsample3(x3)
+        x5 = self.downsample4(x4)
+        x6 = self.upsample5(x5, x4)
+        x7 = self.upsample6(x6, x3)
+        x8 = self.upsample7(x7, x2)
+        x9 = self.upsample8(x8, x1)
+        out = self.conv9(x9)
+        return out
 
     def __str__(self):
-        return "SSD_Mobilenetv2_6fm" + str(self.priors_cnt) + "p" + \
-               str(self.classes_cnt) + "c"
+        return "UNet"
 
 
 class TestSSDBasics(unittest.TestCase):
 
     def test_forward_pass(self):
         batch_sz = 4
-        model = SSD()
-        test_in = torch.from_numpy(np.arange(300*300*3*batch_sz).reshape(batch_sz, 3, 300, 300).astype(np.float32))
+        model = UNet(3, 2)
+        test_in = torch.from_numpy(np.arange(572*572*3*batch_sz).reshape(batch_sz, 3, 572, 572).astype(np.float32))
         net_out = model.forward(test_in)
-        self.assertEqual(len(net_out), 12)
-        for out in net_out:
-            self.assertEqual(out.shape[0], batch_sz)
+        self.assertEqual(net_out.shape, (batch_sz, 388, 388, 2))
         return
 
     def test_back_prop(self):
-        batch_sz = 8
+        '''batch_sz = 8
         priors = 6
         classes = 21
         model = SSD(priors_cnt=priors, classes_cnt=classes)
@@ -98,7 +91,7 @@ class TestSSDBasics(unittest.TestCase):
         l11 = torch.nn.functional.mse_loss(net_out[11], target_out[11])
 
         total = l0+l1+l2+l3+l4+l5+l6+l7+l8+l9+l10+l11
-        total.backward()
+        total.backward()'''
         return
 
 
