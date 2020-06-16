@@ -50,6 +50,8 @@ class VocSegmentationUNet:
                     for class_label in object_classes_list:
                         class_id = self.label2idx[class_label]
                         target_array[class_id] = classes_masks[class_label]
+                    # make plane map with ids
+                    target_array = np.argmax(target_array, axis=0)
 
                     self.input_images.append(image)
                     self.target_tensors.append(target_array)
