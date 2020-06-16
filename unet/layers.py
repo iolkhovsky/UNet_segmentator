@@ -1,5 +1,6 @@
 import torch.nn as nn
 from torch import cat
+import torch.nn.functional as F
 
 
 class ConvX2(nn.Module):
@@ -49,9 +50,7 @@ class UpSample(nn.Module):
 
         y = (residual.size()[2] - x1.size()[2]) // 2
         x = (residual.size()[3] - x1.size()[3]) // 2
-        h = x1.size()[2]
-        w = x1.size()[3]
-        x2 = residual[:, y:y + h, x:x + w, :]
+        x2 = F.pad(residual, [-x, -x, -y, -y])
 
         x = cat([x2, x1], dim=1)
         x = self.conv_x2(x)

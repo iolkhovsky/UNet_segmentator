@@ -2,7 +2,7 @@ import torch.nn as nn
 import numpy as np
 import torch
 import unittest
-from transform_utils import generate_random_tensor
+from transform_utils import tensor_bcyx2byxc
 from unet.layers import *
 
 
@@ -47,53 +47,28 @@ class UNet(nn.Module):
 class TestSSDBasics(unittest.TestCase):
 
     def test_forward_pass(self):
-        batch_sz = 4
+        batch_sz = 2
         model = UNet(3, 2)
         test_in = torch.from_numpy(np.arange(572*572*3*batch_sz).reshape(batch_sz, 3, 572, 572).astype(np.float32))
         net_out = model.forward(test_in)
-        self.assertEqual(net_out.shape, (batch_sz, 388, 388, 2))
+        self.assertEqual(net_out.shape, (batch_sz, 2, 388, 388))
         return
 
     def test_back_prop(self):
-        '''batch_sz = 8
-        priors = 6
-        classes = 21
-        model = SSD(priors_cnt=priors, classes_cnt=classes)
-        test_in = torch.from_numpy(np.arange(300*300*3*batch_sz).reshape(batch_sz, 3, 300, 300).astype(np.float32))
-        clf0_tgt = generate_random_tensor(batch_sz, priors * classes, 38, 38)
-        reg0_tgt = generate_random_tensor(batch_sz, priors * 4, 38, 38)
-        clf1_tgt = generate_random_tensor(batch_sz, priors * classes, 19, 19)
-        reg1_tgt = generate_random_tensor(batch_sz, priors * 4, 19, 19)
-        clf2_tgt = generate_random_tensor(batch_sz, priors * classes, 10, 10)
-        reg2_tgt = generate_random_tensor(batch_sz, priors * 4, 10, 10)
-        clf3_tgt = generate_random_tensor(batch_sz, priors * classes, 5, 5)
-        reg3_tgt = generate_random_tensor(batch_sz, priors * 4, 5, 5)
-        clf4_tgt = generate_random_tensor(batch_sz, priors * classes, 3, 3)
-        reg4_tgt = generate_random_tensor(batch_sz, priors * 4, 3, 3)
-        clf5_tgt = generate_random_tensor(batch_sz, priors * classes, 1, 1)
-        reg5_tgt = generate_random_tensor(batch_sz, priors * 4, 1, 1)
-
-        model.train()
-        net_out = model.forward(test_in)
-        target_out = (clf0_tgt, reg0_tgt, clf1_tgt, reg1_tgt, clf2_tgt, reg2_tgt, clf3_tgt, reg3_tgt,
-                      clf4_tgt, reg4_tgt, clf5_tgt, reg5_tgt)
-        l0 = torch.nn.functional.mse_loss(net_out[0], target_out[0])
-        l1 = torch.nn.functional.mse_loss(net_out[1], target_out[1])
-        l2 = torch.nn.functional.mse_loss(net_out[2], target_out[2])
-        l3 = torch.nn.functional.mse_loss(net_out[3], target_out[3])
-        l4 = torch.nn.functional.mse_loss(net_out[4], target_out[4])
-        l5 = torch.nn.functional.mse_loss(net_out[5], target_out[5])
-        l6 = torch.nn.functional.mse_loss(net_out[6], target_out[6])
-        l7 = torch.nn.functional.mse_loss(net_out[7], target_out[7])
-        l8 = torch.nn.functional.mse_loss(net_out[8], target_out[8])
-        l9 = torch.nn.functional.mse_loss(net_out[9], target_out[9])
-        l10 = torch.nn.functional.mse_loss(net_out[10], target_out[10])
-        l11 = torch.nn.functional.mse_loss(net_out[11], target_out[11])
-
-        total = l0+l1+l2+l3+l4+l5+l6+l7+l8+l9+l10+l11
-        total.backward()'''
+        batch_sz = 1
+        model = UNet(3, 2)
+        loss = nn.CrossEntropyLoss()
+        input = torch.randn(batch_sz, 3, 572, 572)
+        out = model.forward(input)
+        target = torch.empty(batch_sz, 1, 388, 388, dtype=torch.long).random_(2)
+        out = tensor_bcyx2byxc(out)
+        out = torch.reshape(out, [-1, 2])
+        target = target.flatten()
+        output = loss(out, target)
+        output.backward()
         return
 
 
 if __name__ == "__main__":
     unittest.main()
+
