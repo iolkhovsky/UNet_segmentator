@@ -1,5 +1,6 @@
 import torch
 from voc_dataset.voc_segmentation import VocSegmentationUNet, make_dataloaders
+from voc_dataset.voc_index import VocIndex
 from unet.unet_model import UNet
 from unet.loss import compute_loss
 from io_utils import *
@@ -20,7 +21,7 @@ def parse_cmd_args():
                         help="Size of batch for training")
     parser.add_argument("-bv", "--batch-valid", type=int, default=1, metavar="batch_val",
                         help="Size of batch for validation")
-    parser.add_argument("-lr", "--learning-rate", type=float, default=0.1, metavar="lr",
+    parser.add_argument("--learning-rate", type=float, default=0.1, metavar="lr",
                         help="Learning rate")
     parser.add_argument("-model", "--pretrained-model", type=str, metavar="model_path",
                         help="Absolute path to pretrained model")
@@ -28,20 +29,21 @@ def parse_cmd_args():
                         help="Absolute path to dataset index file")
     parser.add_argument("-as", "--autosave-period", type=int, metavar="asave_period",
                         help="Period for model's autosave")
-    parser.add_argument("--vs", "--validation_share", type=float, default=0.1, metavar="val_share",
+    parser.add_argument("--validation_share", type=float, default=0.1, metavar="val_share",
                         help="Period for model's autosave")
-    parser.add_argument("--vp", "--validation_period", type=int, default=10, metavar="val_period",
+    parser.add_argument("--validation_period", type=int, default=10, metavar="val_period",
                         help="Period for model's autosave")
     args = parser.parse_args()
     return args
 
 
-def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10):
+def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10, logger=print):
 
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
     tboard_writer = SummaryWriter()
     prev_tstamp = time()
     iteration_duration = 0
+    global_step = 0
 
     for epoch in range(epoch_cnt):
         epoch_train_loss = 0
@@ -70,28 +72,37 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     val_weights = val_batch["weight"]
                     val_pred = model.forward(val_images)
                     val_loss = compute_loss(val_pred, val_target, val_weights, model.out_classes)
-                    print("Validation", epoch, "batch", idx, "Loss", val_loss.item())
+                    logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", val_loss.item())
+                    tboard_writer.add_scalar("Loss/Val", val_loss.item(), global_step)
 
                 iteration_duration = time() - prev_tstamp
                 prev_tstamp = time()
 
-                print("Epoch", epoch, "batch", idx, "Loss", train_loss.item(), "duration", iteration_duration)
+                logger("Step", global_step, "Epoch", epoch, "batch", idx, "Loss", train_loss.item(), "duration",
+                       iteration_duration)
+
+                tboard_writer.add_scalar("Loss/Train", train_loss.item(), global_step)
+                global_step += 1
+
+        tboard_writer.add_scalar("Loss/Epoch", epoch_train_loss, global_step)
     return
 
 
 def main():
-    logger = Logger("training")
+    train_logger = Logger(path="training_log.txt", hint="training", print_to_console=False)
 
     args = parse_cmd_args()
     model = UNet(3, 2)
     dataset = VocSegmentationUNet(args.dataset_index, ["person"])
-    train_dataloader, val_dataloader = make_dataloaders(dataset, args.batch_train, args.batch_val, args.val_share, True)
+    train_dataloader, val_dataloader = make_dataloaders(dataset, args.batch_train, args.batch_valid,
+                                                        args.validation_share, True)
 
     try:
-        train_unet(model, train_dataloader, val_dataloader, args.lr, args.epochs, args.val_period)
+        train_unet(model, train_dataloader, val_dataloader, args.learning_rate, args.epochs, args.validation_period,
+                   logger=train_logger)
     except KeyboardInterrupt:
         save_model(model, "interrupted_train")
-        logger("Training interrupted, model saved", caller="training script")
+        train_logger("Training interrupted, model saved", caller="training script")
         try:
             sys.exit(0)
         except SystemExit:

@@ -46,14 +46,17 @@ class VocSegmentationUNet:
                     weights_dict, classes_masks = self.get_masks(crop_raw_label_map, object_classes_list, \
                                                                 self.index.color2label)
                     target_array = np.zeros(shape=self.output_tensor_shape, dtype=np.uint8)
-                    weights = np.zeros(shape=(1 + len(object_classes_list)))
+                    weights = np.zeros(shape=(1 + len(object_classes_list)), dtype=np.float32)
 
                     weights[0] = weights_dict["background"]
                     target_array[0] = classes_masks["background"]
                     for class_label in object_classes_list:
                         class_id = self.label2idx[class_label]
                         target_array[class_id] = classes_masks[class_label]
-                        weights[class_id] = weights_dict[class_label]
+                        if class_label in weights_dict.keys():
+                            weights[class_id] = weights_dict[class_label]
+                        else:
+                            weights[class_id] = 0
                     # make plane map with ids
                     target_array = np.argmax(target_array, axis=0)
 

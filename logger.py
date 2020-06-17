@@ -15,8 +15,9 @@ class LogDuration:
 
 class Logger:
 
-    def __init__(self, path=None, hint=None):
+    def __init__(self, path=None, hint=None, print_to_console=True):
         self.log_file = "log.txt"
+        self.console = print_to_console
         if path:
             self.log_file=path
         if hint:
@@ -30,7 +31,9 @@ class Logger:
         buf += ": "
         for arg in args:
             buf += str(arg) + " "
-        print(buf)
+        buf += "\n"
+        if self.console:
+            print(buf)
         with open(self.log_file, "a") as f:
             f.write(buf)
         return
