@@ -3,6 +3,7 @@ from os.path import join, isdir
 import cv2
 import datetime
 import pickle
+import sys
 
 from voc_dataset.utils import load_label_map, make_color2label, color_histogram, make_id2label
 
@@ -74,8 +75,9 @@ class VocIndex:
 
 
 if __name__ == "__main__":
+    print(sys.argv)
     index = VocIndex("/home/igor/datasets/VOC_2012/trainval",
                      "/home/igor/github/my/UNet_segmentator/configs/label_map.txt")
-    index_target_path = "voc_segmentation_index.dat"
+    index_target_path = "voc_segm_index.dat"
     pickle.dump(index, open(index_target_path, 'wb'))
     index.log("Index has been saved at " + index_target_path)

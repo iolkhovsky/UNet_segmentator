@@ -1,5 +1,6 @@
 import cv2
 import pickle
+from torch.utils.data import DataLoader, SubsetRandomSampler
 
 from voc_dataset.voc_index import VocIndex
 from transform_utils import *
@@ -42,20 +43,23 @@ class VocSegmentationUNet:
                     raw_label_map = cv2.resize(raw_label_map, (self.input_tensor_shape[1], self.input_tensor_shape[2]))
                     crop_raw_label_map = raw_label_map[self.crop_y:self.crop_y+self.output_tensor_shape[1], \
                                          self.crop_x:self.crop_x+self.output_tensor_shape[2], :]
-                    weights_map, classes_masks = self.get_masks(crop_raw_label_map, object_classes_list, \
+                    weights_dict, classes_masks = self.get_masks(crop_raw_label_map, object_classes_list, \
                                                                 self.index.color2label)
                     target_array = np.zeros(shape=self.output_tensor_shape, dtype=np.uint8)
+                    weights = np.zeros(shape=(1 + len(object_classes_list)))
 
+                    weights[0] = weights_dict["background"]
                     target_array[0] = classes_masks["background"]
                     for class_label in object_classes_list:
                         class_id = self.label2idx[class_label]
                         target_array[class_id] = classes_masks[class_label]
+                        weights[class_id] = weights_dict[class_label]
                     # make plane map with ids
                     target_array = np.argmax(target_array, axis=0)
 
                     self.input_images.append(image)
                     self.target_tensors.append(target_array)
-                    self.target_weights.append(weights_map)
+                    self.target_weights.append(weights)
         self.input_images = np.asarray(self.input_images)
         self.target_tensors = np.asarray(self.target_tensors)
         self.target_weights = np.asarray(self.target_weights)
@@ -86,12 +90,16 @@ class VocSegmentationUNet:
         average_weight = 1.0 / (len(classes_on_image) + background_presence)
         total_pixels = raw_label_map.shape[0] * raw_label_map.shape[1]
 
+        classes_weights = {}
+
         if background_presence:
-            weights_map = label_maps["background"] * average_weight / (pixels_cnt["background"] / total_pixels)
+            classes_weights["background"] = average_weight / (pixels_cnt["background"] / total_pixels)
+
         for label in classes:
             if label in classes_on_image:
-                weights_map += label_maps[label] * average_weight / (pixels_cnt[label] / total_pixels)
-        return weights_map, label_maps
+                classes_weights[label] = average_weight / (pixels_cnt[label] / total_pixels)
+
+        return classes_weights, label_maps
 
     def __len__(self):
         return len(self.input_images)
@@ -145,12 +153,49 @@ class VocSegmentationUNet:
     def decode_input_image(norm_image):
         if type(norm_image) == torch.tensor:
             norm_image = norm_image.detach().numpy()
-        image = denormalize_img_cyx(norm_image)
+        image = denormalize_img_cyx(norm_image.copy())
         image = array_cyx2yxc(image).astype(np.uint8)
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         return image
 
 
+def make_dataloaders(dataset, train_batch_size=1, val_batch_size=1, validation_split=0.1, shuffle_dataset=True):
+    random_seed = 42
+
+    dataset_size = len(dataset)
+    indices = list(range(dataset_size))
+    split = int(np.floor(validation_split * dataset_size))
+    if shuffle_dataset:
+        np.random.seed(random_seed)
+        np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+
+    train_sampler = SubsetRandomSampler(train_indices)
+    valid_sampler = SubsetRandomSampler(val_indices)
+
+    train_dataloader = torch.utils.data.DataLoader(dataset, batch_size=train_batch_size,
+                                                   sampler=train_sampler)
+    validation_dataloader = torch.utils.data.DataLoader(dataset, batch_size=val_batch_size,
+                                                        sampler=valid_sampler)
+    return train_dataloader, validation_dataloader
+
+
 if __name__ == "__main__":
-    voc_dataset_index_path = "/home/igor/github/my/UNet_segmentator/voc_dataset/voc_segmentation_index.dat"
+    voc_dataset_index_path = "voc_segm_index.dat"
     dataset = VocSegmentationUNet(voc_dataset_index_path, ["person"])
+    train_dloader, val_dloader = make_dataloaders(dataset, 2, 1, 0.1, True)
+    print("dataset size", len(dataset))
+    print("Train", len(train_dloader))
+    for batch_idx, batch in enumerate(train_dloader):
+        img = batch["input"]
+        target = batch["target"]
+        weights = batch["weight"]
+        print(img.shape, target.shape, weights.shape)
+        break
+    print("Val", len(val_dloader))
+    for batch_idx, batch in enumerate(val_dloader):
+        img = batch["input"]
+        target = batch["target"]
+        weights = batch["weight"]
+        print(img.shape, target.shape, weights.shape)
+        break

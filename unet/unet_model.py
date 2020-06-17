@@ -4,6 +4,7 @@ import torch
 import unittest
 from transform_utils import tensor_bcyx2byxc
 from unet.layers import *
+from unet.loss import compute_loss
 
 
 class UNet(nn.Module):
@@ -57,15 +58,14 @@ class TestSSDBasics(unittest.TestCase):
     def test_back_prop(self):
         batch_sz = 1
         model = UNet(3, 2)
-        loss = nn.CrossEntropyLoss()
+
         input = torch.randn(batch_sz, 3, 572, 572)
         out = model.forward(input)
         target = torch.empty(batch_sz, 1, 388, 388, dtype=torch.long).random_(2)
-        out = tensor_bcyx2byxc(out)
-        out = torch.reshape(out, [-1, 2])
-        target = target.flatten()
-        output = loss(out, target)
-        output.backward()
+        weights = torch.randn(batch_sz, 2)
+
+        loss = compute_loss(prediction_tensor=out, target_maps=target, weights=weights, classes_cnt=2)
+        loss.backward()
         return
 
 
