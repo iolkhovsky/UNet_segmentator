@@ -41,13 +41,13 @@ def load_model(path, logger=None):
     return torch_model
 
 
-def save_model(torch_model, hint=None, logger=None):
+def save_model(torch_model, use_cuda, hint=None, logger=None):
     fname = compile_checkpoint_name(str(torch_model), hint)
-    if CUDA_IS_AVAILABLE:
+    if CUDA_IS_AVAILABLE and use_cuda:
         torch_model = torch_model.cpu()
     torch.save(torch_model, fname)
     if logger:
         logger("Model '"+fname+"' successfully saved.")
-    if CUDA_IS_AVAILABLE:
+    if CUDA_IS_AVAILABLE and use_cuda:
         torch_model = torch_model.cuda()
     return torch_model

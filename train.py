@@ -29,18 +29,20 @@ def parse_cmd_args():
                         help="Absolute path (or relative to \"models_checkpoints\" folder) to pretrained model")
     parser.add_argument("-data", "--dataset-index", type=str, metavar="dataset_index",
                         help="Absolute path to dataset index file")
-    parser.add_argument("--autosave-period", type=int, metavar="asave_period",
+    parser.add_argument("--autosave-period", type=int, default=10, metavar="asave_period",
                         help="Period for model's autosave in batches")
     parser.add_argument("--validation_share", type=float, default=0.1, metavar="val_share",
                         help="Share of data used in validation")
     parser.add_argument("--validation_period", type=int, default=10, metavar="val_period",
                         help="Period for model's validation in batches")
+    parser.add_argument("--use_gpu", type=int, default=0, metavar="ugpu",
+                        help="Use GPU (CUDA) or not")
     args = parser.parse_args()
     return args
 
 
 def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10, asave_period=200,
-               logger=print):
+               use_cuda=True, logger=print):
 
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
     tboard_writer = SummaryWriter()
@@ -73,6 +75,7 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     val_images = val_batch["input"]
                     val_target = val_batch["target"]
                     val_weights = val_batch["weight"]
+
                     val_pred = model.forward(val_images)
                     val_loss = compute_loss(val_pred, val_target, val_weights, model.out_classes)
                     val_accuracy = get_accuracy(val_pred, val_target)
@@ -92,7 +95,7 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     tboard_writer.add_image('Valid/Image', img_tensor=img_grid_src,
                                             global_step=global_step, dataformats='CHW')
                 if (idx + 1) % asave_period == 0:
-                    save_model(model, "e"+str(epoch)+"b"+str(idx))
+                    save_model(model, use_cuda=use_cuda, hint="e"+str(epoch)+"b"+str(idx))
 
                 iteration_duration = time() - prev_tstamp
                 prev_tstamp = time()
@@ -117,10 +120,11 @@ def main():
     dataset = VocSegmentationUNet(args.dataset_index, ["person"])
     train_dataloader, val_dataloader = make_dataloaders(dataset, args.batch_train, args.batch_valid,
                                                         args.validation_share, True)
+    use_cuda = torch.cuda.is_available() and int(args.use_gpu)
 
     try:
         train_unet(model, train_dataloader, val_dataloader, args.learning_rate, args.epochs, args.validation_period,
-                   args.autosave_period, logger=train_logger)
+                   args.autosave_period, use_cuda=use_cuda, logger=train_logger)
     except KeyboardInterrupt:
         save_model(model, "interrupted_train")
         train_logger("Training interrupted, model saved", caller="training script")
