@@ -1,7 +1,7 @@
 import torch
 from voc_dataset.voc_segmentation import VocSegmentationUNet, make_dataloaders
 from voc_dataset.voc_index import VocIndex
-from unet.utils import visualize_prediction_target
+from unet.utils import visualize_prediction_target, get_accuracy
 from unet.unet_model import UNet
 from unet.loss import compute_loss
 from io_utils import *
@@ -17,29 +17,30 @@ import torchvision
 
 def parse_cmd_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--epochs", type=int, default=1, metavar="epochs",
+    parser.add_argument("--epochs", type=int, default=1, metavar="epochs",
                         help="Number of epochs")
-    parser.add_argument("-bt", "--batch-train", type=int, default=1, metavar="batch_train",
+    parser.add_argument("--batch-train", type=int, default=1, metavar="batch_train",
                         help="Size of batch for training")
-    parser.add_argument("-bv", "--batch-valid", type=int, default=1, metavar="batch_val",
+    parser.add_argument("--batch-valid", type=int, default=1, metavar="batch_val",
                         help="Size of batch for validation")
     parser.add_argument("--learning-rate", type=float, default=0.1, metavar="lr",
                         help="Learning rate")
     parser.add_argument("-model", "--pretrained-model", type=str, metavar="model_path",
-                        help="Absolute path to pretrained model")
+                        help="Absolute path (or relative to \"models_checkpoints\" folder) to pretrained model")
     parser.add_argument("-data", "--dataset-index", type=str, metavar="dataset_index",
                         help="Absolute path to dataset index file")
-    parser.add_argument("-as", "--autosave-period", type=int, metavar="asave_period",
-                        help="Period for model's autosave")
+    parser.add_argument("--autosave-period", type=int, metavar="asave_period",
+                        help="Period for model's autosave in batches")
     parser.add_argument("--validation_share", type=float, default=0.1, metavar="val_share",
-                        help="Period for model's autosave")
+                        help="Share of data used in validation")
     parser.add_argument("--validation_period", type=int, default=10, metavar="val_period",
-                        help="Period for model's autosave")
+                        help="Period for model's validation in batches")
     args = parser.parse_args()
     return args
 
 
-def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10, logger=print):
+def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10, asave_period=200,
+               logger=print):
 
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
     tboard_writer = SummaryWriter()
@@ -49,7 +50,7 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
     for epoch in range(epoch_cnt):
         epoch_train_loss = 0
         batches_per_epoch = len(train_dataloader)
-        with tqdm(total=batches_per_epoch, desc=f'Epoch {epoch + 1}/{epoch_cnt}', unit='img') as pbar:
+        with tqdm(total=batches_per_epoch, desc=f'Epoch {epoch + 1}/{epoch_cnt}', unit='batch') as pbar:
             for idx, batch in enumerate(train_dataloader):
                 model.train()
 
@@ -59,6 +60,7 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
 
                 prediction = model.forward(input_images)
                 train_loss = compute_loss(prediction, target_outputs, weights, model.out_classes)
+                train_accuracy = get_accuracy(prediction, target_outputs)
                 optimizer.zero_grad()
                 train_loss.backward()
                 optimizer.step()
@@ -73,10 +75,13 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     val_weights = val_batch["weight"]
                     val_pred = model.forward(val_images)
                     val_loss = compute_loss(val_pred, val_target, val_weights, model.out_classes)
+                    val_accuracy = get_accuracy(val_pred, val_target)
                     logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", val_loss.item())
                     tboard_writer.add_scalar("Loss/Val", val_loss.item(), global_step)
+                    tboard_writer.add_scalar("Accuracy/Val", val_accuracy, global_step)
 
-                    src_imgs, pred_imgs, target_imgs = visualize_prediction_target(val_images, val_pred, val_target, to_tensors=True)
+                    src_imgs, pred_imgs, target_imgs = visualize_prediction_target(val_images, val_pred, val_target,
+                                                                                   to_tensors=True)
                     img_grid_pred = torchvision.utils.make_grid(pred_imgs)
                     img_grid_tgt = torchvision.utils.make_grid(target_imgs)
                     img_grid_src = torchvision.utils.make_grid(src_imgs)
@@ -86,6 +91,8 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                                             global_step=global_step, dataformats='CHW')
                     tboard_writer.add_image('Valid/Image', img_tensor=img_grid_src,
                                             global_step=global_step, dataformats='CHW')
+                if (idx + 1) % asave_period == 0:
+                    save_model(model, "e"+str(epoch)+"b"+str(idx))
 
                 iteration_duration = time() - prev_tstamp
                 prev_tstamp = time()
@@ -94,14 +101,16 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                        iteration_duration)
 
                 tboard_writer.add_scalar("Loss/Train", train_loss.item(), global_step)
+                tboard_writer.add_scalar("Accuracy/Train", train_accuracy, global_step)
                 global_step += 1
+                pbar.update(len(input_images))
 
         tboard_writer.add_scalar("Loss/Epoch", epoch_train_loss, global_step)
     return
 
 
 def main():
-    train_logger = Logger(path="training_log.txt", hint="training", print_to_console=False)
+    train_logger = Logger(path="log.txt", hint="training", print_to_console=False)
 
     args = parse_cmd_args()
     model = UNet(3, 2)
@@ -111,7 +120,7 @@ def main():
 
     try:
         train_unet(model, train_dataloader, val_dataloader, args.learning_rate, args.epochs, args.validation_period,
-                   logger=train_logger)
+                   args.autosave_period, logger=train_logger)
     except KeyboardInterrupt:
         save_model(model, "interrupted_train")
         train_logger("Training interrupted, model saved", caller="training script")

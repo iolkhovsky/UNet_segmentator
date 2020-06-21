@@ -48,7 +48,6 @@ def decode_target(target, to_tensors):
 def decode_input_tensor(img, to_tensors):
     image = denormalize_img_cyx(img)
     image = array_cyx2yxc(image)
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     image = array_yxc2cyx(image)
     if to_tensors:
         image = torch.from_numpy(image)
@@ -71,3 +70,13 @@ def visualize_prediction_target(src_batch, pred_batch, target_batch, to_tensors=
     for src in src_batch:
         src_imgs.append(decode_input_tensor(src, to_tensors))
     return src_imgs, out_pred, target_pred
+
+
+def get_accuracy(pred_batch, target_batch):
+    if type(pred_batch) == torch.Tensor:
+        pred_batch = pred_batch.detach().numpy()
+    if type(target_batch) == torch.Tensor:
+        target_batch = target_batch.detach().numpy()
+    idmap = np.argmax(pred_batch, axis=1)
+    total = target_batch.shape[0] * target_batch.shape[1] * target_batch.shape[2]
+    return np.sum((idmap == target_batch).astype(np.uint8)) / (1. * total)
