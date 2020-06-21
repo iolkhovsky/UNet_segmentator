@@ -1,6 +1,7 @@
 import torch
 from voc_dataset.voc_segmentation import VocSegmentationUNet, make_dataloaders
 from voc_dataset.voc_index import VocIndex
+from unet.utils import visualize_prediction_target
 from unet.unet_model import UNet
 from unet.loss import compute_loss
 from io_utils import *
@@ -11,6 +12,7 @@ import os
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from time import time
+import torchvision
 
 
 def parse_cmd_args():
@@ -42,7 +44,6 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
     tboard_writer = SummaryWriter()
     prev_tstamp = time()
-    iteration_duration = 0
     global_step = 0
 
     for epoch in range(epoch_cnt):
@@ -64,7 +65,7 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
 
                 epoch_train_loss += train_loss.item()
 
-                if idx + 1 % valid_period == 0:
+                if (idx + 1) % valid_period == 0:
                     model.eval()
                     val_batch = next(iter(val_dataloader))
                     val_images = val_batch["input"]
@@ -74,6 +75,17 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     val_loss = compute_loss(val_pred, val_target, val_weights, model.out_classes)
                     logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", val_loss.item())
                     tboard_writer.add_scalar("Loss/Val", val_loss.item(), global_step)
+
+                    src_imgs, pred_imgs, target_imgs = visualize_prediction_target(val_images, val_pred, val_target, to_tensors=True)
+                    img_grid_pred = torchvision.utils.make_grid(pred_imgs)
+                    img_grid_tgt = torchvision.utils.make_grid(target_imgs)
+                    img_grid_src = torchvision.utils.make_grid(src_imgs)
+                    tboard_writer.add_image('Valid/Predicted', img_tensor=img_grid_pred,
+                                            global_step=global_step, dataformats='CHW')
+                    tboard_writer.add_image('Valid/Target', img_tensor=img_grid_tgt,
+                                            global_step=global_step, dataformats='CHW')
+                    tboard_writer.add_image('Valid/Image', img_tensor=img_grid_src,
+                                            global_step=global_step, dataformats='CHW')
 
                 iteration_duration = time() - prev_tstamp
                 prev_tstamp = time()
