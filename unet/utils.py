@@ -66,7 +66,7 @@ def visualize_prediction_target(src_batch, pred_batch, target_batch, to_tensors=
     for pred in pred_batch:
         out_pred.append(decode_prediction(pred, to_tensors))
     for target in target_batch:
-        target_pred.append(decode_target(target, to_tensors))
+        target_pred.append(decode_prediction(target, to_tensors))
     for src in src_batch:
         src_imgs.append(decode_input_tensor(src, to_tensors))
     return src_imgs, out_pred, target_pred
@@ -78,5 +78,6 @@ def get_accuracy(pred_batch, target_batch):
     if type(target_batch) == torch.Tensor:
         target_batch = target_batch.detach().numpy()
     idmap = np.argmax(pred_batch, axis=1)
+    tgmap = np.argmax(target_batch, axis=1)
     total = target_batch.shape[0] * target_batch.shape[1] * target_batch.shape[2]
-    return np.sum((idmap == target_batch).astype(np.uint8)) / (1. * total)
+    return np.sum((idmap == tgmap).astype(np.uint8)) / (1. * total)

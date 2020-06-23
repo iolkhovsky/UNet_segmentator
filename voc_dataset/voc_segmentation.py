@@ -57,8 +57,6 @@ class VocSegmentationUNet:
                             weights[class_id] = weights_dict[class_label]
                         else:
                             weights[class_id] = 0
-                    # make plane map with ids
-                    target_array = np.argmax(target_array, axis=0)
 
                     self.input_images.append(image)
                     self.target_tensors.append(target_array)
