@@ -17,25 +17,25 @@ import torchvision
 
 def parse_cmd_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=1, metavar="epochs",
+    parser.add_argument("--epochs", type=int, default=1,
                         help="Number of epochs")
-    parser.add_argument("--batch-train", type=int, default=1, metavar="batch_train",
+    parser.add_argument("--batch-train", type=int, default=1,
                         help="Size of batch for training")
-    parser.add_argument("--batch-valid", type=int, default=1, metavar="batch_val",
+    parser.add_argument("--batch-valid", type=int, default=1,
                         help="Size of batch for validation")
-    parser.add_argument("--learning-rate", type=float, default=0.1, metavar="lr",
+    parser.add_argument("--learning-rate", type=float, default=0.1,
                         help="Learning rate")
-    parser.add_argument("-model", "--pretrained-model", type=str, metavar="model_path",
+    parser.add_argument("-model", "--pretrained-model", type=str,
                         help="Absolute path (or relative to \"models_checkpoints\" folder) to pretrained model")
-    parser.add_argument("-data", "--dataset-index", type=str, metavar="dataset_index",
+    parser.add_argument("-data", "--dataset-index", type=str,
                         help="Absolute path to dataset index file")
-    parser.add_argument("--autosave-period", type=int, default=10, metavar="asave_period",
+    parser.add_argument("--autosave-period", type=int, default=10,
                         help="Period for model's autosave in batches")
-    parser.add_argument("--validation_share", type=float, default=0.1, metavar="val_share",
+    parser.add_argument("--validation_share", type=float, default=0.1,
                         help="Share of data used in validation")
-    parser.add_argument("--validation_period", type=int, default=10, metavar="val_period",
+    parser.add_argument("--validation_period", type=int, default=10,
                         help="Period for model's validation in batches")
-    parser.add_argument("--use_gpu", type=int, default=0, metavar="ugpu",
+    parser.add_argument("--use_gpu", type=int, default=0,
                         help="Use GPU (CUDA) or not")
     args = parser.parse_args()
     return args
@@ -44,13 +44,14 @@ def parse_cmd_args():
 def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10, asave_period=200,
                use_cuda=True, logger=print):
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
+
     tboard_writer = SummaryWriter()
     prev_tstamp = time()
     global_step = 0
 
     for epoch in range(epoch_cnt):
-        epoch_train_loss = 0
         batches_per_epoch = len(train_dataloader)
         with tqdm(total=batches_per_epoch, desc=f'Epoch {epoch + 1}/{epoch_cnt}', unit='batch') as pbar:
             for idx, batch in enumerate(train_dataloader):
@@ -66,8 +67,6 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                 optimizer.zero_grad()
                 train_loss.backward()
                 optimizer.step()
-
-                epoch_train_loss += train_loss.item()
 
                 if (idx + 1) % valid_period == 0:
                     model.eval()
@@ -107,8 +106,6 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                 tboard_writer.add_scalar("Accuracy/Train", train_accuracy, global_step)
                 global_step += 1
                 pbar.update(len(input_images))
-
-        tboard_writer.add_scalar("Loss/Epoch", epoch_train_loss, global_step)
     return
 
 

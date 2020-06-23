@@ -15,6 +15,10 @@ def compute_loss(prediction_tensor, target_maps, weights, classes_cnt):
         average_weights = torch.mean(weights, dim=0)
     else:
         raise RuntimeError("Unexpected weights type"+str(type(weights)))
-    criterion = CrossEntropyLoss(weight=average_weights)
+
+    criterion = torch.nn.BCEWithLogitsLoss()
+    if classes_cnt > 2:
+        criterion = torch.nn.CrossEntropyLoss()
+
     loss = criterion(pred, target)
     return loss
