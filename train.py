@@ -45,6 +45,7 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                use_cuda=True, logger=print):
 
     optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     # optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
 
     tboard_writer = SummaryWriter()
@@ -76,8 +77,11 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     val_weights = val_batch["weight"]
 
                     val_pred = model.forward(val_images)
-                    val_loss = compute_loss(val_pred, val_target, val_weights, model.out_classes)
                     val_accuracy = get_accuracy(val_pred, val_target)
+                    val_loss = compute_loss(val_pred, val_target, val_weights, model.out_classes)
+                    scheduler.step(val_loss.item())
+                    tboard_writer.add_scalar('LearningRate', optimizer.param_groups[0]['lr'], global_step)
+
                     logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", val_loss.item())
                     tboard_writer.add_scalar("Loss/Val", val_loss.item(), global_step)
                     tboard_writer.add_scalar("Accuracy/Val", val_accuracy, global_step)
