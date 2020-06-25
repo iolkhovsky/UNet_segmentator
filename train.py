@@ -78,29 +78,23 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     val_weights = val_batch["weight"]
 
                     # due to high memory usage we'll eval images separately
-                    batch_average_loss = 0.
-                    batch_average_acc = 0.
                     prediction_array = []
                     for sample_id in range(len(val_images)):
                         img_shape = val_images[sample_id].shape
-                        pred = model.forward(val_images[sample_id].reshape(1, img_shape[0], img_shape[1],
+                        sample_pred = model.forward(val_images[sample_id].reshape(1, img_shape[0], img_shape[1],
                                                                            img_shape[2]))[0]
-                        prediction_array.append(pred.detach().numpy())
-                        target = val_target[sample_id]
-                        val_accuracy = get_accuracy(pred, target)
-                        val_loss = compute_loss(pred, target, val_weights, model.out_classes)
-                        batch_average_loss += val_loss.item()
-                        batch_average_acc += val_accuracy
-                    batch_average_loss /= len(val_images)
-                    batch_average_acc /= len(val_images)
+                        prediction_array.append(sample_pred.detach().numpy())
                     prediction_array = np.asarray(prediction_array)
 
-                    scheduler.step(batch_average_loss)
+                    val_accuracy = get_accuracy(prediction_array, val_target)
+                    val_loss = compute_loss(prediction_array, val_target, val_weights, model.out_classes)
+
+                    scheduler.step(val_loss)
                     tboard_writer.add_scalar('LearningRate', optimizer.param_groups[0]['lr'], global_step)
 
-                    logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", batch_average_loss)
-                    tboard_writer.add_scalar("Loss/Val", batch_average_loss, global_step)
-                    tboard_writer.add_scalar("Accuracy/Val", batch_average_acc, global_step)
+                    logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", val_loss)
+                    tboard_writer.add_scalar("Loss/Val", val_loss, global_step)
+                    tboard_writer.add_scalar("Accuracy/Val", val_accuracy, global_step)
 
                     src_imgs, pred_imgs, target_imgs = visualize_prediction_target(val_images, prediction_array, val_target,
                                                                                    to_tensors=True)
