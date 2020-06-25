@@ -5,6 +5,8 @@ import numpy as np
 
 
 def compute_loss(prediction_tensor, target_maps, weights, classes_cnt):
+    if type(prediction_tensor) != torch.Tensor:
+        prediction_tensor = torch.from_numpy(prediction_tensor)
     pred = tensor_bcyx2byxc(prediction_tensor)
     pred = torch.reshape(pred, [-1, classes_cnt])
 
