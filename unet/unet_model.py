@@ -27,8 +27,8 @@ class UNet(nn.Module):
 
         self.conv9 = nn.Conv2d(64, out_classes, kernel_size=1)
 
-        he_normal(self.conv1)
-        he_normal(self.conv9)
+        he_normal(self.conv1.weight)
+        he_normal(self.conv9.weight)
         return
 
     def forward(self, x):
