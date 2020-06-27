@@ -45,9 +45,8 @@ def parse_cmd_args():
 def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10, asave_period=200,
                use_cuda=True, logger=print):
 
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-8)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
-    # optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
 
     tboard_writer = SummaryWriter()
     prev_tstamp = time()

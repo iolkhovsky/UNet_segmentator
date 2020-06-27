@@ -1,6 +1,7 @@
 import torch.nn as nn
 from torch import cat
 import torch.nn.functional as F
+from torch.nn.init import kaiming_normal_ as he_normal
 
 
 class ConvX2(nn.Module):
@@ -13,6 +14,8 @@ class ConvX2(nn.Module):
         self.conv2 = nn.Conv2d(in_channels=channels[1], out_channels=channels[2], kernel_size=3, padding=0)
         self.bn2 = nn.BatchNorm2d(channels[2])
         self.act2 = nn.ReLU()
+        he_normal(self.conv1.weight)
+        he_normal(self.conv2.weight)
         return
 
     def forward(self, x):
