@@ -83,6 +83,18 @@ def tensor_byxc2bcyx(tns):
     return tns
 
 
+def array_bcyx2byxc(arr):
+    arr = np.swapaxes(arr, 1, 3)
+    arr = np.swapaxes(arr, 1, 2)
+    return arr
+
+
+def array_byxc2bcyx(arr):
+    arr = np.swapaxes(arr, 3, 1)
+    arr = np.swapaxes(arr, 2, 3)
+    return arr
+
+
 def custom_softmax(data_vector):
     return np.exp(data_vector) / np.sum(np.exp(data_vector))
 

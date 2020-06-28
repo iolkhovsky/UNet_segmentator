@@ -1,10 +1,9 @@
-import torch.nn as nn
 import numpy as np
 import torch
-import unittest
-from transform_utils import tensor_bcyx2byxc
 from unet.layers import *
 from unet.loss import compute_loss
+from torch.nn.init import kaiming_normal_ as he_normal
+import unittest
 
 
 class UNet(nn.Module):
@@ -15,6 +14,7 @@ class UNet(nn.Module):
         self.out_classes = out_classes
 
         self.conv1 = ConvX2(channels=[in_channels, 64, 64])
+
         self.downsample1 = DownSample(channels=[64, 128, 128])
         self.downsample2 = DownSample(channels=[128, 256, 256])
         self.downsample3 = DownSample(channels=[256, 512, 512])
@@ -26,6 +26,8 @@ class UNet(nn.Module):
         self.upsample8 = UpSample(channels=[128, 64, 64])
 
         self.conv9 = nn.Conv2d(64, out_classes, kernel_size=1)
+
+        he_normal(self.conv9.weight)
         return
 
     def forward(self, x):

@@ -13,6 +13,7 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from time import time
 import torchvision
+import numpy as np
 
 
 def parse_cmd_args():
@@ -25,9 +26,9 @@ def parse_cmd_args():
                         help="Size of batch for validation")
     parser.add_argument("--learning-rate", type=float, default=0.1,
                         help="Learning rate")
-    parser.add_argument("-model", "--pretrained-model", type=str,
+    parser.add_argument("--pretrained-model", type=str,
                         help="Absolute path (or relative to \"models_checkpoints\" folder) to pretrained model")
-    parser.add_argument("-data", "--dataset-index", type=str,
+    parser.add_argument("--dataset-index", type=str,
                         help="Absolute path to dataset index file")
     parser.add_argument("--autosave-period", type=int, default=10,
                         help="Period for model's autosave in batches")
@@ -44,8 +45,8 @@ def parse_cmd_args():
 def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, valid_period=10, asave_period=200,
                use_cuda=True, logger=print):
 
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.99)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-8)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
     tboard_writer = SummaryWriter()
     prev_tstamp = time()
@@ -75,14 +76,26 @@ def train_unet(model, train_dataloader, val_dataloader, lr=1e-3, epoch_cnt=1, va
                     val_target = val_batch["target"]
                     val_weights = val_batch["weight"]
 
-                    val_pred = model.forward(val_images)
-                    val_loss = compute_loss(val_pred, val_target, val_weights, model.out_classes)
-                    val_accuracy = get_accuracy(val_pred, val_target)
-                    logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", val_loss.item())
-                    tboard_writer.add_scalar("Loss/Val", val_loss.item(), global_step)
+                    # due to high memory usage we'll eval images separately
+                    prediction_array = []
+                    for sample_id in range(len(val_images)):
+                        img_shape = val_images[sample_id].shape
+                        sample_pred = model.forward(val_images[sample_id].reshape(1, img_shape[0], img_shape[1],
+                                                                           img_shape[2]))[0]
+                        prediction_array.append(sample_pred.detach().numpy())
+                    prediction_array = np.asarray(prediction_array)
+
+                    val_accuracy = get_accuracy(prediction_array, val_target)
+                    val_loss = compute_loss(prediction_array, val_target, val_weights, model.out_classes)
+
+                    scheduler.step(val_loss)
+                    tboard_writer.add_scalar('LearningRate', optimizer.param_groups[0]['lr'], global_step)
+
+                    logger("Step", global_step, "Validation", epoch, "batch", idx, "Loss", val_loss)
+                    tboard_writer.add_scalar("Loss/Val", val_loss, global_step)
                     tboard_writer.add_scalar("Accuracy/Val", val_accuracy, global_step)
 
-                    src_imgs, pred_imgs, target_imgs = visualize_prediction_target(val_images, val_pred, val_target,
+                    src_imgs, pred_imgs, target_imgs = visualize_prediction_target(val_images, prediction_array, val_target,
                                                                                    to_tensors=True)
                     img_grid_pred = torchvision.utils.make_grid(pred_imgs)
                     img_grid_tgt = torchvision.utils.make_grid(target_imgs)
