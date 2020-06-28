@@ -34,6 +34,13 @@ def make_color2label(label_map):
     return out
 
 
+def make_id2color(label_map):
+    out = {}
+    for label in label_map.keys():
+        out[out[label]["idx"]] = out[label]["color"]
+    return out
+
+
 def color_histogram(image_bgr):
     hist = {}
     for j in range(image_bgr.shape[0]):
