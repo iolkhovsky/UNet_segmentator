@@ -26,9 +26,9 @@ def parse_cmd_args():
                         help="Size of batch for validation")
     parser.add_argument("--learning-rate", type=float, default=0.1,
                         help="Learning rate")
-    parser.add_argument("-model", "--pretrained-model", type=str,
+    parser.add_argument("--pretrained-model", type=str,
                         help="Absolute path (or relative to \"models_checkpoints\" folder) to pretrained model")
-    parser.add_argument("-data", "--dataset-index", type=str,
+    parser.add_argument("--dataset-index", type=str,
                         help="Absolute path to dataset index file")
     parser.add_argument("--autosave-period", type=int, default=10,
                         help="Period for model's autosave in batches")

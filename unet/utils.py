@@ -79,5 +79,5 @@ def get_accuracy(pred_batch, target_batch):
         target_batch = target_batch.detach().numpy()
     idmap = np.argmax(pred_batch, axis=1)
     tgmap = np.argmax(target_batch, axis=1)
-    total = target_batch.shape[0] * target_batch.shape[1] * target_batch.shape[2]
+    total = target_batch.shape[0] * target_batch.shape[2] * target_batch.shape[3]
     return np.sum((idmap == tgmap).astype(np.uint8)) / (1. * total)
